@@ -1,274 +1,159 @@
-# 📈 LSTM Stock Price Prediction API
+# Tech Challenge Fase 4 — LSTM Stock Price Prediction
 
-> **Tech Challenge Fase 4 — Pos Tech Machine Learning Engineering**  
-> Modelo preditivo de série temporal com LSTM + API RESTful + Docker + Monitoramento
+Projeto desenvolvido para o Tech Challenge da Fase 4 do curso de Machine Learning Engineering da Pos Tech FIAP.
+
+O objetivo foi construir um modelo de redes neurais LSTM capaz de prever o preço de fechamento de uma ação, e entregar esse modelo através de uma API REST que pode ser rodada localmente ou em nuvem via Docker.
+
+A ação escolhida foi a **Apple (AAPL)**, usando dados históricos de 2018 a 2024 coletados via Yahoo Finance.
 
 ---
 
-## 🗂 Estrutura do Projeto
+## Resultado do treinamento
+
+O modelo foi treinado com uma janela de 60 dias de histórico (Open, High, Low, Close, Volume) para prever o fechamento do dia seguinte. Os resultados no conjunto de teste foram:
+
+- MAE: 12.98
+- RMSE: 14.51
+- MAPE: 5.81%
+- R²: 0.40
+
+O R² relativamente baixo é esperado em séries financeiras — o modelo captura a tendência geral, mas não consegue prever movimentos bruscos causados por eventos externos (resultados trimestrais, notícias, etc). Para uso real seria necessário adicionar features externas e retreinar periodicamente.
+
+---
+
+## Arquitetura do modelo
+
+Rede LSTM empilhada com duas camadas, dropout para regularização e função de loss Huber (mais robusta a outliers do que MSE):
+
+```
+Input (60 dias × 5 features)
+  → LSTM(128, return_sequences=True)
+  → Dropout(0.2)
+  → LSTM(64)
+  → Dropout(0.2)
+  → Dense(32, relu)
+  → Dense(1)
+```
+
+Treinado com Adam (lr=0.001), EarlyStopping com patience=15 e ReduceLROnPlateau. Split de 80/10/10 para treino, validação e teste.
+
+---
+
+## Estrutura do projeto
 
 ```
 lstm-stock-api/
 ├── app/
-│   └── main.py              # FastAPI — endpoints de predição e monitoramento
+│   └── main.py          # API FastAPI com endpoints de predição e monitoramento
 ├── model/
-│   ├── train.py             # Pipeline de treinamento LSTM completa
-│   └── artifacts/           # Gerado após treino: modelo, scaler, métricas
-│       ├── lstm_best.keras
-│       ├── scaler.pkl
-│       ├── meta.json
-│       ├── metrics.json
-│       └── results.png
+│   ├── train.py         # Script de coleta, pré-processamento e treinamento
+│   └── artifacts/       # Modelo treinado, scaler e metadados (gerados pelo train.py)
 ├── monitoring/
-│   ├── monitor.py           # Dashboard de monitoramento em tempo real
-│   └── api.log              # Log persistido (gerado em runtime)
+│   └── monitor.py       # Script de monitoramento via terminal
 ├── tests/
-│   └── test_api.py          # Testes automáticos com pytest
-├── Dockerfile               # Multi-stage build otimizado
-├── docker-compose.yml       # Orquestração API + treino
-├── render.yaml              # Deploy gratuito no Render.com
-├── requirements.txt
-└── README.md
+│   └── test_api.py      # Testes dos endpoints com pytest
+├── Dockerfile
+├── docker-compose.yml
+├── render.yaml          # Configuração para deploy no Render.com
+└── requirements.txt
 ```
 
 ---
 
-## 🧠 Arquitetura do Modelo
+## Como rodar
 
-| Componente | Detalhe |
-|---|---|
-| Ação | **PETR4.SA** (Petrobras) — customizável |
-| Features | Open, High, Low, Close, Volume (5 features) |
-| Janela temporal | **60 dias** de histórico para cada predição |
-| Arquitetura | LSTM(128) → Dropout(0.2) → LSTM(64) → Dropout(0.2) → Dense(32) → Dense(1) |
-| Loss | Huber (robusto a outliers) |
-| Otimizador | Adam (lr=0.001) com ReduceLROnPlateau |
-| Callbacks | EarlyStopping (patience=15) + ModelCheckpoint |
-| Split | 80% treino / 10% validação / 10% teste |
+Requisito: Python 3.11. No Mac com Apple Silicon usar `/opt/homebrew/bin/python3.11`.
 
----
-
-## 🚀 Como Rodar
-
-### Pré-requisitos
-- Python 3.11+
-- Docker & Docker Compose (opcional)
-
----
-
-### 1. Instalar dependências
-
+**1. Instalar dependências**
 ```bash
-git clone https://github.com/seu-usuario/lstm-stock-api.git
-cd lstm-stock-api
 pip install -r requirements.txt
 ```
 
----
-
-### 2. Treinar o modelo
-
+**2. Treinar o modelo**
 ```bash
 python model/train.py
 ```
+Isso baixa os dados da AAPL via yfinance, treina o modelo e salva os artefatos em `model/artifacts/`. Demora entre 5 e 15 minutos dependendo da máquina.
 
-O script vai:
-1. Baixar dados históricos da **PETR4.SA** via `yfinance`
-2. Normalizar com `MinMaxScaler` e criar janelas de 60 dias
-3. Treinar a rede LSTM com early stopping
-4. Salvar os artefatos em `model/artifacts/`
-5. Imprimir as métricas (MAE, RMSE, MAPE, R²)
-6. Gerar gráfico `model/artifacts/results.png`
+Para usar outra ação, muda o `CONFIG["symbol"]` no início do `train.py`.
 
-> Para trocar a ação, edite `CONFIG["symbol"]` em `model/train.py`.
-
----
-
-### 3. Rodar a API
-
+**3. Subir a API**
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Acesse:
-- **Swagger UI**: http://localhost:8000/docs
-- **Health check**: http://localhost:8000/health
-- **Métricas**: http://localhost:8000/metrics
+Acesse `http://localhost:8000/docs` para testar pelo Swagger.
 
----
-
-### 4. Rodar com Docker
-
+**4. Com Docker**
 ```bash
-# Build e start da API
 docker compose up --build
-
-# Treinar dentro do Docker (antes de subir a API)
-docker compose --profile train up trainer
 ```
 
 ---
 
-## 📡 Endpoints da API
+## Endpoints
 
-### `GET /health`
-Verifica se a API e o modelo estão carregados.
+**POST /predict**
+
+Recebe o ticker e quantos dias prever, busca os dados mais recentes via yfinance e retorna as previsões:
 
 ```json
 {
-  "status": "ok",
-  "model_loaded": true,
-  "symbol": "PETR4.SA",
-  "uptime_requests": 42
-}
-```
-
----
-
-### `POST /predict`
-Gera previsões de preço de fechamento.
-
-**Request body:**
-```json
-{
-  "symbol": "PETR4.SA",
+  "symbol": "AAPL",
   "days_ahead": 5,
   "use_latest": true
 }
 ```
 
-**Response:**
+Resposta:
 ```json
 {
-  "symbol": "PETR4.SA",
+  "symbol": "AAPL",
   "predictions": [
-    { "date": "2025-01-20", "predicted_close": 37.82 },
-    { "date": "2025-01-21", "predicted_close": 38.10 },
-    ...
+    { "date": "2026-05-21", "predicted_close": 258.59 },
+    { "date": "2026-05-22", "predicted_close": 259.06 }
   ],
-  "model_metrics": {
-    "MAE": 0.4231,
-    "RMSE": 0.6102,
-    "MAPE": 1.38,
-    "R2": 0.9741
-  },
-  "generated_at": "2025-01-19T14:32:00"
+  "model_metrics": { "MAE": 12.98, "RMSE": 14.51, "MAPE": 5.81, "R2": 0.40 },
+  "generated_at": "2026-05-20T23:32:13"
 }
 ```
 
-**Com preços manuais (sem internet):**
-```json
-{
-  "use_latest": false,
-  "days_ahead": 3,
-  "prices": [35.1, 35.4, 35.8, ...]
-}
-```
+Também aceita preços manuais via campo `prices` (útil quando sem internet), passando pelo menos 60 valores de fechamento.
+
+**GET /health** — verifica se o modelo está carregado e retorna total de requisições
+
+**GET /metrics** — latência média, P95, P99, total de predições e últimas requisições
+
+**GET /model/info** — metadados do modelo carregado (symbol, features, sequence_length)
+
+**POST /model/reload** — recarrega os artefatos sem reiniciar a API
 
 ---
 
-### `GET /metrics`
-Monitoramento da API em tempo real.
-
-```json
-{
-  "total_requests": 150,
-  "successful_predictions": 143,
-  "failed_requests": 7,
-  "response_time_ms": {
-    "avg": 234.5,
-    "p95": 450.2,
-    "p99": 890.1,
-    "min": 45.3,
-    "max": 1200.0
-  },
-  "model_metrics": { "MAE": 0.42, "RMSE": 0.61, "MAPE": 1.38, "R2": 0.97 }
-}
-```
-
----
-
-### `GET /model/info`
-Metadados do modelo carregado.
-
-### `POST /model/reload`
-Recarrega os artefatos do modelo sem reiniciar a API (útil após retreino).
-
----
-
-## 📊 Monitoramento em Tempo Real
+## Monitoramento
 
 ```bash
 python monitoring/monitor.py --url http://localhost:8000 --interval 5
 ```
 
-Exibe um dashboard no terminal atualizado a cada 5 segundos com:
-- Total de requisições / predições / erros
-- Latência média, P95, P99
-- Métricas de qualidade do modelo
-- Última predição realizada
-
-Os logs também são persistidos em `monitoring/api.log`.
+Exibe no terminal as métricas de latência e qualidade do modelo, atualizadas a cada 5 segundos. Os logs ficam salvos em `monitoring/api.log`.
 
 ---
 
-## 🧪 Testes
+## Testes
 
 ```bash
 pytest tests/ -v
 ```
 
-Testes cobrem:
-- Endpoints de saúde e métricas
-- Validação de schema do request (`days_ahead` fora do range, etc.)
-- Comportamento sem modelo carregado
-- Presença do header de timing
+Cobre validação de schema, comportamento sem modelo carregado, presença do header de timing e respostas dos endpoints de saúde e métricas.
 
 ---
 
-## ☁️ Deploy em Nuvem (Gratuito)
+## Deploy
 
-### Render.com
-
-1. Crie uma conta em [render.com](https://render.com)
-2. Conecte seu repositório GitHub
-3. Clique em **New → Blueprint** e selecione o repositório
-4. O `render.yaml` configura tudo automaticamente
-
-> ⚠️ Treine o modelo localmente e faça commit dos artefatos em `model/artifacts/` antes do deploy, ou configure o treino como parte do build.
-
-### Railway / Hugging Face Spaces
-
-Alternativas gratuitas — use o `Dockerfile` incluso. Basta conectar o repositório.
+O arquivo `render.yaml` configura o deploy no Render.com. Basta conectar o repositório e criar um novo Blueprint. Os artefatos do modelo já estão commitados, então a API sobe direto sem precisar retreinar.
 
 ---
 
-## 🔧 Customização
-
-| Parâmetro | Onde alterar | Default |
-|---|---|---|
-| Ação analisada | `CONFIG["symbol"]` em `train.py` | `PETR4.SA` |
-| Janela temporal | `CONFIG["sequence_length"]` | `60` |
-| Neurônios LSTM | `CONFIG["lstm_units"]` | `[128, 64]` |
-| Dropout | `CONFIG["dropout_rate"]` | `0.2` |
-| Épocas máximas | `CONFIG["epochs"]` | `100` |
-| Split treino | `CONFIG["train_ratio"]` | `0.8` |
-
----
-
-## 📦 Tecnologias
-
-| Área | Tecnologia |
-|---|---|
-| Deep Learning | TensorFlow / Keras 2.16 |
-| Dados | yfinance, pandas, numpy |
-| API | FastAPI + Uvicorn |
-| Containerização | Docker + Docker Compose |
-| Testes | pytest + httpx |
-| Deploy | Render.com / Railway |
-
----
-
-## 📄 Licença
-
-Projeto acadêmico — Tech Challenge Fase 4, Pos Tech FIAP.
+Pos Tech FIAP — Machine Learning Engineering — Fase 4
