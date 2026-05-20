@@ -1,10 +1,6 @@
 # Tech Challenge Fase 4 — LSTM Stock Price Prediction
 
-Projeto desenvolvido para o Tech Challenge da Fase 4 do curso de Machine Learning Engineering da Pos Tech FIAP.
-
-O objetivo foi construir um modelo de redes neurais LSTM capaz de prever o preço de fechamento de uma ação, e entregar esse modelo através de uma API REST que pode ser rodada localmente ou em nuvem via Docker.
-
-A ação escolhida foi a **Apple (AAPL)**, usando dados históricos de 2018 a 2024 coletados via Yahoo Finance.
+"Esse projeto implementa um modelo LSTM para prever o preço de fechamento da Apple (AAPL) e serve as previsões via API REST. Desenvolvido como Tech Challenge da Fase 4 — Pos Tech FIAP / Machine Learning Engineering."
 
 ---
 
