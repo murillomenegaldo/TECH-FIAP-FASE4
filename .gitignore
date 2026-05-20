@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.DS_Store
+monitoring/api.log
+
+# Keep artifacts folder but ignore large model files
+# (commit only if files are small; otherwise use Git LFS)
+# model/artifacts/*.keras
+# model/artifacts/*.pkl

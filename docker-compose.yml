@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  lstm-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lstm-stock-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist trained model artifacts
+      - ./model/artifacts:/app/model/artifacts
+      # Persist logs
+      - ./monitoring:/app/monitoring
+    environment:
+      - MODEL_DIR=model/artifacts
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Optional: train the model inside Docker before running the API
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lstm-trainer
+    volumes:
+      - ./model:/app/model
+    command: python model/train.py
+    profiles:
+      - train   # Run with: docker compose --profile train up trainer
+
+networks:
+  default:
+    name: lstm-network

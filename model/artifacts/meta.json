@@ -1,0 +1,13 @@
+{
+  "features": [
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume"
+  ],
+  "target": "Close",
+  "target_idx": 3,
+  "sequence_length": 60,
+  "symbol": "AAPL"
+}

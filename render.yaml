@@ -1,0 +1,18 @@
+# Deploy gratuito no Render.com
+# Docs: https://render.com/docs/yaml-spec
+services:
+  - type: web
+    name: lstm-stock-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: MODEL_DIR
+        value: model/artifacts
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    disk:
+      name: model-artifacts
+      mountPath: /app/model/artifacts
+      sizeGB: 1
+    healthCheckPath: /health
