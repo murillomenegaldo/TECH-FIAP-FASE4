@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore")
 # 1. CONFIGURATION
 # ─────────────────────────────────────────────
 CONFIG = {
-    "symbol": "AAPL",     # Petrobras - ação brasileira
+    "symbol": "PETR4.SA",        # Petrobras - ação brasileira
     "start_date": "2018-01-01",
     "end_date": "2024-12-31",
     "sequence_length": 60,        # Janela temporal: 60 dias de histórico
@@ -254,6 +254,11 @@ def main():
     # Build & train
     model = build_model(CONFIG["sequence_length"], n_features)
     history = train(model, X_train, y_train, X_val, y_val)
+
+    # Save last window for API fallback (used when yfinance is unavailable)
+    last_window = X_test[-1]   # shape (seq_len, n_features)
+    np.save(os.path.join(CONFIG["model_dir"], "last_window.npy"), last_window)
+    print(f"💾 Janela de fallback salva.")
 
     # Save final model
     model.save(os.path.join(CONFIG["model_dir"], "lstm_final.keras"))

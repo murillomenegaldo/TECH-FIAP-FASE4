@@ -170,26 +170,36 @@ class HealthResponse(BaseModel):
 # HELPERS
 # ─────────────────────────────────────────────
 def fetch_recent_data(symbol: str, seq_len: int, features: List[str]) -> np.ndarray:
-    """Download last (seq_len + buffer) days of data."""
+    """Download recent data. Falls back to cached window if yfinance fails."""
     buffer = 30
     end = datetime.today()
     start = end - timedelta(days=seq_len * 2 + buffer)
-    df = yf.download(symbol, start=start.strftime("%Y-%m-%d"),
-                     end=end.strftime("%Y-%m-%d"), auto_adjust=True, progress=False)
-    if df.empty:
-        raise HTTPException(status_code=404, detail=f"Nenhum dado encontrado para {symbol}.")
 
-    # Flatten MultiIndex
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
+    df = None
+    try:
+        raw = yf.download(symbol, start=start.strftime("%Y-%m-%d"),
+                          end=end.strftime("%Y-%m-%d"), auto_adjust=True, progress=False)
+        if not raw.empty:
+            if isinstance(raw.columns, pd.MultiIndex):
+                raw.columns = raw.columns.get_level_values(0)
+            raw = raw[features].dropna()
+            if len(raw) >= seq_len:
+                df = raw
+                logger.info(f"Dados ao vivo obtidos para {symbol}.")
+    except Exception as e:
+        logger.warning(f"yfinance falhou: {e}. Usando cache local.")
 
-    df = df[features].dropna()
-    if len(df) < seq_len:
+    if df is None:
+        cache_path = os.path.join(MODEL_DIR, "last_window.npy")
+        if os.path.exists(cache_path):
+            logger.info("Usando janela em cache.")
+            return np.load(cache_path)
         raise HTTPException(
-            status_code=422,
-            detail=f"Dados insuficientes para {symbol}. Necessário: {seq_len}, obtido: {len(df)}."
+            status_code=503,
+            detail=f"Nao foi possivel obter dados para {symbol} e nao ha cache disponivel."
         )
-    return df.values[-seq_len:]   # shape (seq_len, n_features)
+
+    return df.values[-seq_len:]
 
 
 def predict_n_days(model, scaler, meta: dict, seed_window: np.ndarray, n: int) -> List[float]:
